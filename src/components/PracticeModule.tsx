@@ -138,8 +138,9 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
     }
   };
 
-  const goToNextQuestion = () => {
+  const goToNextQuestion = async () => {
     if (currentIndex < questionList.length - 1) {
+      // 还有下一题，直接跳转
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
       setCurrentQuestion(questionList[nextIndex]);
@@ -148,10 +149,31 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
       setShowNextOptions(false);
     } else {
       // 没有更多题目
-      setCurrentQuestion(null);
-      setQuestionList([]);
-      setFeedback(null);
-      setShowNextOptions(false);
+      if (mode === 'chapter' && selectedKP) {
+        // 系统学习模式：继续生成新题目
+        setIsLoading(true);
+        try {
+          const newQ = await generateQuestion(selectedSubject, selectedKP, Math.random() > 0.3 ? 'choice' : 'qa');
+          const newList = [...questionList, newQ];
+          setQuestionList(newList);
+          const nextIndex = currentIndex + 1;
+          setCurrentIndex(nextIndex);
+          setCurrentQuestion(newQ);
+          setUserAnswer('');
+          setFeedback(null);
+          setShowNextOptions(false);
+        } catch (error) {
+          console.error('Generate next question error:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // 模拟冲刺模式：结束练习
+        setCurrentQuestion(null);
+        setQuestionList([]);
+        setFeedback(null);
+        setShowNextOptions(false);
+      }
     }
   };
 
@@ -519,9 +541,11 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
                       {feedback.isCorrect ? (
                         <button
                           onClick={goToNextQuestion}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                          disabled={isLoading}
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         >
-                          {currentIndex < questionList.length - 1 ? '下一题' : '完成'} <ArrowRight size={18} />
+                          {isLoading ? <Loader2 className="animate-spin" size={18} /> : null}
+                          {mode === 'chapter' ? '下一题' : (currentIndex < questionList.length - 1 ? '下一题' : '完成')} <ArrowRight size={18} />
                         </button>
                       ) : (
                         <button
@@ -552,8 +576,10 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
                           </button>
                           <button
                             onClick={goToNextQuestion}
-                            className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                            disabled={isLoading}
+                            className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                           >
+                            {isLoading ? <Loader2 className="animate-spin" size={18} /> : null}
                             进入下一题 <ArrowRight size={18} />
                           </button>
                         </div>
