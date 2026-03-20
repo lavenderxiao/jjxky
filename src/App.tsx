@@ -258,12 +258,13 @@ export default function App() {
                 />
               )}
               {activeModule === 'wrong-questions' && (
-                <WrongQuestionBook 
+                <WrongQuestionBook
                   wrongQuestions={wrongQuestions}
                   collections={collections}
                   onAddCollection={addCollection}
                   onRemoveQuestion={removeWrongQuestion}
                   onMoveQuestion={moveQuestionToCollection}
+                  onAddWrongQuestion={addWrongQuestion}
                 />
               )}
               {activeModule === 'score-query' && (

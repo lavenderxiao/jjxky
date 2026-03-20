@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, Plus, Trash2, PlayCircle, Layers, ChevronRight, X, Star, Loader2, BookmarkPlus, Check } from 'lucide-react';
+import { Book, Plus, Trash2, PlayCircle, Layers, ChevronRight, X, Star, Loader2, BookmarkPlus, Check, BookOpen, ExternalLink, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Question, WrongQuestion, WrongCollection } from '../types';
 import { evaluateAnswer, generateSimilarQuestions } from '../services/geminiService';
@@ -10,14 +10,16 @@ interface WrongQuestionBookProps {
   onAddCollection: (name: string) => void;
   onRemoveQuestion: (id: string) => void;
   onMoveQuestion: (qId: string, cId: string) => void;
+  onAddWrongQuestion?: (q: Question, collectionId: string) => void;
 }
 
-export default function WrongQuestionBook({ 
-  wrongQuestions, 
-  collections, 
-  onAddCollection, 
+export default function WrongQuestionBook({
+  wrongQuestions,
+  collections,
+  onAddCollection,
   onRemoveQuestion,
-  onMoveQuestion
+  onMoveQuestion,
+  onAddWrongQuestion
 }: WrongQuestionBookProps) {
   const [activeCollectionId, setActiveCollectionId] = useState<string>('all');
   const [selectedQuestion, setSelectedQuestion] = useState<WrongQuestion | null>(null);
@@ -32,6 +34,7 @@ export default function WrongQuestionBook({
   const [isLoading, setIsLoading] = useState(false);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [collectionSuccess, setCollectionSuccess] = useState<string | null>(null);
+  const [showPracticeOptions, setShowPracticeOptions] = useState(false);
 
   const filteredQuestions = activeCollectionId === 'all' 
     ? wrongQuestions 
@@ -43,6 +46,7 @@ export default function WrongQuestionBook({
     setCurrentPracticeIndex(0);
     setUserAnswer('');
     setFeedback(null);
+    setShowPracticeOptions(false);
   };
 
   const startSimilarPractice = async (q: Question) => {
@@ -54,6 +58,7 @@ export default function WrongQuestionBook({
       setCurrentPracticeIndex(0);
       setUserAnswer('');
       setFeedback(null);
+      setShowPracticeOptions(false);
     } catch (error) {
       console.error('Similar questions error:', error);
     } finally {
@@ -79,8 +84,20 @@ export default function WrongQuestionBook({
       setCurrentPracticeIndex(prev => prev + 1);
       setUserAnswer('');
       setFeedback(null);
+      setShowPracticeOptions(false);
     } else {
       setPracticeMode('none');
+      setPracticeQuestions([]);
+      setFeedback(null);
+      setShowPracticeOptions(false);
+    }
+  };
+
+  const handleCollectPracticeQuestion = (collectionId: string) => {
+    if (onAddWrongQuestion && practiceQuestions[currentPracticeIndex]) {
+      onAddWrongQuestion(practiceQuestions[currentPracticeIndex], collectionId);
+      setCollectionSuccess(collectionId);
+      setTimeout(() => setCollectionSuccess(null), 2000);
     }
   };
 
@@ -249,10 +266,84 @@ export default function WrongQuestionBook({
                     {feedback.isCorrect ? '回答正确！' : '回答错误'}
                   </h4>
                   <p className="text-slate-700 mb-4"><span className="font-bold">正确答案：</span>{practiceQuestions[currentPracticeIndex].answer}</p>
-                  <div className="p-4 bg-white rounded-xl border border-slate-200 text-sm mb-6">
+
+                  {/* 知识点显示 */}
+                  <div className="p-4 bg-white rounded-xl border border-indigo-100 mb-4">
+                    <span className="font-bold text-indigo-800">涉及知识点：</span>
+                    <span className="text-indigo-600">{practiceQuestions[currentPracticeIndex].knowledgePoint}</span>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-xl border border-slate-200 text-sm mb-4">
+                    <span className="font-bold block mb-2">详细解析：</span>
                     {feedback.detailedExplanation}
                   </div>
-                  <div className="flex flex-col gap-3">
+
+                  {/* 推荐课程 - 答错时显示 */}
+                  {!feedback.isCorrect && feedback.recommendedCourse && (
+                    <div className="flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center">
+                          <BookOpen size={20} />
+                        </div>
+                        <div>
+                          <p className="text-xs text-indigo-600 font-bold uppercase">推荐课程</p>
+                          <p className="text-sm font-medium text-slate-800">Bilibili: {feedback.recommendedCourse}</p>
+                        </div>
+                      </div>
+                      <a
+                        href={`https://search.bilibili.com/all?keyword=${encodeURIComponent(feedback.recommendedCourse)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                      >
+                        <ExternalLink size={20} />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* 收藏按钮 */}
+                  {onAddWrongQuestion && (
+                    <button
+                      onClick={() => setIsCollectionModalOpen(true)}
+                      className="w-full py-3 mb-4 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Star size={18} /> 收藏此题
+                    </button>
+                  )}
+
+                  {/* 答错时的选项 */}
+                  {!feedback.isCorrect && !showPracticeOptions && (
+                    <button
+                      onClick={() => setShowPracticeOptions(true)}
+                      className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      继续 <ChevronRight size={18} />
+                    </button>
+                  )}
+
+                  {/* 答错时的操作选项 */}
+                  {showPracticeOptions && !feedback.isCorrect && (
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => startSimilarPractice(practiceQuestions[currentPracticeIndex])}
+                        disabled={isLoading}
+                        className="w-full py-3 bg-white border-2 border-indigo-200 text-indigo-600 rounded-xl font-bold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        {isLoading ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                        继续练习此知识点
+                      </button>
+                      <button
+                        onClick={nextPracticeQuestion}
+                        disabled={isLoading}
+                        className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                      >
+                        进入下一题 <ChevronRight size={18} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 答对时的下一题按钮 */}
+                  {feedback.isCorrect && (
                     <button
                       onClick={nextPracticeQuestion}
                       disabled={isLoading}
@@ -260,17 +351,7 @@ export default function WrongQuestionBook({
                     >
                       {currentPracticeIndex < practiceQuestions.length - 1 ? '下一题' : '完成练习'}
                     </button>
-                    {practiceMode === 're-practice' && (
-                      <button
-                        onClick={() => startSimilarPractice(practiceQuestions[currentPracticeIndex])}
-                        disabled={isLoading}
-                        className="w-full py-3 bg-white text-indigo-600 border-2 border-indigo-600 rounded-xl font-bold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
-                      >
-                        {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Layers size={18} />}
-                        练习类似题型
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </motion.div>
               )}
             </div>
@@ -403,7 +484,7 @@ export default function WrongQuestionBook({
         )}
       </div>
 
-      {/* Collection Modal */}
+      {/* Collection Modal for Selected Question */}
       <AnimatePresence>
         {isCollectionModalOpen && selectedQuestion && (
           <motion.div
@@ -452,6 +533,61 @@ export default function WrongQuestionBook({
                     </button>
                   );
                 })}
+              </div>
+
+              {collectionSuccess && (
+                <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-medium flex items-center gap-2">
+                  <Check size={16} /> 已添加到错题本
+                </div>
+              )}
+
+              <button
+                onClick={() => setIsCollectionModalOpen(false)}
+                className="w-full py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-all"
+              >
+                完成
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Collection Modal for Practice Mode */}
+      <AnimatePresence>
+        {isCollectionModalOpen && practiceMode !== 'none' && practiceQuestions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-slate-800">收藏到错题本</h3>
+                <button
+                  onClick={() => setIsCollectionModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-2">
+                {collections.filter(c => c.id !== 'all').map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleCollectPracticeQuestion(c.id)}
+                    className="w-full text-left p-4 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all flex items-center justify-between group"
+                  >
+                    <span className="font-medium text-slate-700">{c.name}</span>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-600" />
+                  </button>
+                ))}
               </div>
 
               {collectionSuccess && (

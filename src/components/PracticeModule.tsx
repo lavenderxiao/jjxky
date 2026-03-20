@@ -504,6 +504,13 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
 
                   <div className="space-y-4 text-slate-700">
                     <p><span className="font-bold">正确答案：</span>{currentQuestion.answer}</p>
+
+                    {/* 知识点显示 */}
+                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <span className="font-bold text-indigo-800">涉及知识点：</span>
+                      <span className="text-indigo-600">{currentQuestion.knowledgePoint}</span>
+                    </div>
+
                     <div className="p-4 bg-white rounded-xl border border-slate-200 text-sm leading-relaxed">
                       <span className="font-bold block mb-2">详细解析：</span>
                       {feedback.detailedExplanation}
