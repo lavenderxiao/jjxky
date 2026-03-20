@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Target, GraduationCap, ChevronRight, CheckCircle2, XCircle, ExternalLink, RefreshCw, Star, Loader2, CheckSquare, Square, ListChecks, ArrowRight, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, ChevronRight, CheckCircle2, XCircle, ExternalLink, RefreshCw, Star, Loader2, PlayCircle, Calendar, Layers, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ExamTarget, Question, UserProfile, WrongCollection } from '../types';
+import { Question, WrongCollection } from '../types';
 import { generateQuestion, evaluateAnswer } from '../services/geminiService';
 import { REAL_EXAM_QUESTIONS } from '../data';
 
-const UNIVERSITIES = ['北京大学', '清华大学', '复旦大学', '上海交通大学', '中国人民大学', '武汉大学', '南京大学', '浙江大学'];
-const MAJORS = ['理论经济学', '应用经济学', '金融学', '统计学', '国际贸易学', '财政学'];
 const SUBJECTS = ['微观经济学', '宏观经济学', '政治经济学', '计量经济学', '数学三'];
 const KNOWLEDGE_POINTS: Record<string, string[]> = {
   '微观经济学': ['消费者行为理论', '生产理论', '成本理论', '市场结构', '博弈论', '福利经济学'],
@@ -15,6 +13,7 @@ const KNOWLEDGE_POINTS: Record<string, string[]> = {
   '计量经济学': ['简单线性回归', '多元线性回归', '异方差性', '自相关', '多重共线性'],
   '数学三': ['微积分', '线性代数', '概率论与数理统计']
 };
+const YEARS = [2024, 2023, 2022, 2021, 2020];
 
 interface PracticeModuleProps {
   mode: 'chapter' | 'mock';
@@ -24,76 +23,96 @@ interface PracticeModuleProps {
 
 export default function PracticeModule({ mode, onAddWrongQuestion, collections }: PracticeModuleProps) {
   const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
-  const [selectedKPs, setSelectedKPs] = useState<string[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [selectedKP, setSelectedKP] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [mockMode, setMockMode] = useState<'knowledge' | 'year' | null>(null);
+
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [questionList, setQuestionList] = useState<Question[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [feedback, setFeedback] = useState<{ isCorrect: boolean; analysis: string; detailedExplanation: string; recommendedCourse?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [showNextOptions, setShowNextOptions] = useState(false);
-  const [similarQuestions, setSimilarQuestions] = useState<Question[]>([]);
-  const [isGeneratingSimilar, setIsGeneratingSimilar] = useState(false);
 
-  const toggleKP = (kp: string) => {
-    setSelectedKPs(prev => 
-      prev.includes(kp) ? prev.filter(k => k !== kp) : [...prev, kp]
-    );
-  };
-
-  const selectAllKPs = () => {
-    setSelectedKPs(KNOWLEDGE_POINTS[selectedSubject] || []);
-  };
-
-  const clearAllKPs = () => {
-    setSelectedKPs([]);
-  };
-
-  const startPractice = async () => {
+  // 系统学习：点击知识点生成一道题
+  const handleKPClick = async (kp: string) => {
+    setSelectedKP(kp);
     setIsLoading(true);
     setFeedback(null);
     setUserAnswer('');
-    setCurrentQuestion(null);
 
     try {
-      if (mode === 'mock') {
-        // 模拟冲刺模式：从真题库中抽取近5年真题
-        const recentYears = [2024, 2023, 2022, 2021, 2020];
-        const selectedQuestions: Question[] = [];
+      const question = await generateQuestion(selectedSubject, kp, Math.random() > 0.3 ? 'choice' : 'qa');
+      setCurrentQuestion(question);
+      setQuestionList([question]);
+      setCurrentIndex(0);
+    } catch (error) {
+      console.error('Generate question error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        // 从每年随机抽取题目
-        for (const year of recentYears) {
-          const yearQuestions = REAL_EXAM_QUESTIONS.filter(q => q.year === year);
-          if (yearQuestions.length > 0) {
-            // 每年随机抽取2道题
-            const shuffled = [...yearQuestions].sort(() => Math.random() - 0.5);
-            const selected = shuffled.slice(0, Math.min(2, shuffled.length));
-            selectedQuestions.push(...selected.map(q => ({
-              ...q,
-              source: q.source
-            })));
-          }
-        }
+  // 模拟冲刺：根据知识点获取真题
+  const startMockByKnowledge = async () => {
+    if (!selectedKP) return;
+    setIsLoading(true);
+    setFeedback(null);
+    setUserAnswer('');
 
-        // 打乱顺序
-        const shuffledQuestions = selectedQuestions.sort(() => Math.random() - 0.5);
-        setQuestions(shuffledQuestions);
+    try {
+      // 从真题库中筛选该科目和知识点的近5年真题
+      const filtered = REAL_EXAM_QUESTIONS.filter(
+        q => q.subject === selectedSubject && q.knowledgePoint === selectedKP
+      );
+
+      if (filtered.length > 0) {
+        const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+        setQuestionList(shuffled);
+        setCurrentQuestion(shuffled[0]);
+        setCurrentIndex(0);
       } else {
-        // 系统学习模式：根据知识点生成题目
-        if (selectedKPs.length === 0) return;
-
-        const allGenerated: Question[] = [];
-        for (const kp of selectedKPs) {
-          const promises = Array.from({ length: 10 }).map(() =>
-            generateQuestion(selectedSubject, kp, Math.random() > 0.3 ? 'choice' : 'qa')
-          );
-          const generated = await Promise.all(promises);
-          allGenerated.push(...generated);
-        }
-        setQuestions(allGenerated);
+        // 如果没有匹配的真题，生成模拟题
+        const question = await generateQuestion(selectedSubject, selectedKP, Math.random() > 0.3 ? 'choice' : 'qa');
+        setQuestionList([question]);
+        setCurrentQuestion(question);
+        setCurrentIndex(0);
       }
     } catch (error) {
-      console.error('Generate questions error:', error);
+      console.error('Mock by knowledge error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 模拟冲刺：根据年份获取真题
+  const startMockByYear = async () => {
+    if (!selectedYear) return;
+    setIsLoading(true);
+    setFeedback(null);
+    setUserAnswer('');
+
+    try {
+      // 从真题库中筛选该科目和年份的真题
+      const filtered = REAL_EXAM_QUESTIONS.filter(
+        q => q.subject === selectedSubject && q.year === selectedYear
+      );
+
+      if (filtered.length > 0) {
+        const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+        setQuestionList(shuffled);
+        setCurrentQuestion(shuffled[0]);
+        setCurrentIndex(0);
+      } else {
+        // 如果没有匹配的真题，提示用户
+        alert(`暂无${selectedYear}年${selectedSubject}的真题数据`);
+        setIsLoading(false);
+        return;
+      }
+    } catch (error) {
+      console.error('Mock by year error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -119,18 +138,72 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
     }
   };
 
+  const goToNextQuestion = () => {
+    if (currentIndex < questionList.length - 1) {
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setCurrentQuestion(questionList[nextIndex]);
+      setUserAnswer('');
+      setFeedback(null);
+      setShowNextOptions(false);
+    } else {
+      // 没有更多题目
+      setCurrentQuestion(null);
+      setQuestionList([]);
+      setFeedback(null);
+      setShowNextOptions(false);
+    }
+  };
+
+  const handleBack = () => {
+    setCurrentQuestion(null);
+    setQuestionList([]);
+    setFeedback(null);
+    setUserAnswer('');
+    setShowNextOptions(false);
+    if (mode === 'mock') {
+      setMockMode(null);
+      setSelectedKP(null);
+      setSelectedYear(null);
+    }
+  };
+
+  const generateSimilarQuestion = async () => {
+    if (!currentQuestion) return;
+    setIsLoading(true);
+    try {
+      const newQ = await generateQuestion(
+        currentQuestion.subject,
+        currentQuestion.knowledgePoint,
+        Math.random() > 0.3 ? 'choice' : 'qa'
+      );
+      // 插入到当前位置之后
+      const newList = [...questionList];
+      newList.splice(currentIndex + 1, 0, newQ);
+      setQuestionList(newList);
+      setShowNextOptions(false);
+      goToNextQuestion();
+    } catch (error) {
+      console.error('Generate similar question error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto h-full flex flex-col">
-      {/* Top Nav */}
+      {/* Top Nav - Subject Selection */}
       <div className="bg-white border-b border-slate-200 p-2 flex items-center gap-2 overflow-x-auto mb-4 rounded-xl shadow-sm">
         {SUBJECTS.map(s => (
           <button
             key={s}
             onClick={() => {
               setSelectedSubject(s);
-              setSelectedKPs([]);
-              setQuestions([]);
+              setSelectedKP(null);
+              setSelectedYear(null);
+              setMockMode(null);
               setCurrentQuestion(null);
+              setQuestionList([]);
               setFeedback(null);
             }}
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
@@ -143,108 +216,159 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-hidden">
-        {/* Knowledge Points Sidebar */}
+        {/* Left Sidebar */}
         <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200 p-4 flex flex-col overflow-hidden shadow-sm">
           {mode === 'chapter' ? (
+            // 系统学习模式
             <>
               <div className="flex items-center justify-between mb-4 px-2">
                 <h4 className="font-bold text-slate-800">必备知识点</h4>
-                <div className="flex gap-2">
-                  <button
-                    onClick={selectAllKPs}
-                    className="text-[10px] text-indigo-600 font-bold hover:underline"
-                  >
-                    全选
-                  </button>
-                  <button
-                    onClick={clearAllKPs}
-                    className="text-[10px] text-slate-400 font-bold hover:underline"
-                  >
-                    清空
-                  </button>
-                </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-1 mb-4 pr-1">
-                {KNOWLEDGE_POINTS[selectedSubject]?.map(kp => {
-                  const isSelected = selectedKPs.includes(kp);
-                  return (
-                    <button
-                      key={kp}
-                      onClick={() => toggleKP(kp)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex items-center gap-3 group ${
-                        isSelected
-                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                          : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-                      }`}
-                    >
-                      {isSelected ? (
-                        <CheckSquare size={18} className="text-indigo-600 flex-shrink-0" />
-                      ) : (
-                        <Square size={18} className="text-slate-300 group-hover:text-slate-400 flex-shrink-0" />
-                      )}
-                      <span className="truncate flex-1">{kp}</span>
-                    </button>
-                  );
-                })}
+              <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+                {KNOWLEDGE_POINTS[selectedSubject]?.map(kp => (
+                  <button
+                    key={kp}
+                    onClick={() => handleKPClick(kp)}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex items-center gap-3 group ${
+                      selectedKP === kp
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                    }`}
+                  >
+                    <PlayCircle size={16} className={selectedKP === kp ? 'text-white' : 'text-slate-400'} />
+                    <span className="truncate flex-1">{kp}</span>
+                    <ChevronRight size={14} className={selectedKP === kp ? 'text-white/70' : 'text-slate-300 group-hover:text-indigo-600'} />
+                  </button>
+                ))}
               </div>
 
-              <button
-                onClick={startPractice}
-                disabled={selectedKPs.length === 0 || isLoading}
-                className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 mt-auto"
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <RefreshCw size={18} />
-                )}
-                生成模拟题 ({selectedKPs.length * 10})
-              </button>
+              <div className="mt-4 p-3 bg-slate-50 rounded-xl text-xs text-slate-500 text-center">
+                点击知识点开始练习
+              </div>
             </>
           ) : (
+            // 模拟冲刺模式
             <>
-              <div className="flex items-center justify-between mb-4 px-2">
-                <h4 className="font-bold text-slate-800">模拟冲刺</h4>
-              </div>
-
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-                <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
-                  <FileText size={32} className="text-purple-600" />
-                </div>
-                <h5 className="font-bold text-slate-800 mb-2">近5年真题演练</h5>
-                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                  系统将从2020-2024年真题库中随机抽取题目，帮助你进行模拟冲刺练习。
-                </p>
-
-                <div className="w-full space-y-2 text-left text-xs text-slate-500 mb-6">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-500" />
-                    <span>涵盖微观经济学、宏观经济学</span>
+              {!mockMode ? (
+                // 选择模式
+                <>
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <h4 className="font-bold text-slate-800">选择练习模式</h4>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-500" />
-                    <span>包含选择题、问答题、计算题</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-500" />
-                    <span>每道题显示真题来源</span>
-                  </div>
-                </div>
-              </div>
 
-              <button
-                onClick={startPractice}
-                disabled={isLoading}
-                className="w-full py-3.5 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2 mt-auto"
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <GraduationCap size={18} />
-                )}
-                开始模拟冲刺
-              </button>
+                  <div className="flex-1 flex flex-col gap-3 p-2">
+                    <button
+                      onClick={() => setMockMode('knowledge')}
+                      className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-purple-200 hover:bg-purple-50 transition-all text-left group"
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                          <Layers size={20} className="text-purple-600" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-slate-800">按知识点练习</h5>
+                          <p className="text-xs text-slate-500">选择知识点，练习近5年真题</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setMockMode('year')}
+                      className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-purple-200 hover:bg-purple-50 transition-all text-left group"
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                          <Calendar size={20} className="text-purple-600" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-slate-800">按年份练习</h5>
+                          <p className="text-xs text-slate-500">选择年份，练习该年真题</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              ) : mockMode === 'knowledge' ? (
+                // 按知识点模式
+                <>
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <button
+                      onClick={() => { setMockMode(null); setSelectedKP(null); }}
+                      className="text-xs text-slate-500 hover:text-indigo-600 flex items-center gap-1"
+                    >
+                      <ChevronRight size={14} className="rotate-180" /> 返回
+                    </button>
+                    <h4 className="font-bold text-slate-800">选择知识点</h4>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+                    {KNOWLEDGE_POINTS[selectedSubject]?.map(kp => (
+                      <button
+                        key={kp}
+                        onClick={() => setSelectedKP(kp)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex items-center gap-3 group ${
+                          selectedKP === kp
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <span className="truncate flex-1">{kp}</span>
+                        {selectedKP === kp && <CheckCircle2 size={16} />}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={startMockByKnowledge}
+                    disabled={!selectedKP || isLoading}
+                    className="w-full mt-4 py-3.5 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? <Loader2 className="animate-spin" size={18} /> : <PlayCircle size={18} />}
+                    开始练习
+                  </button>
+                </>
+              ) : (
+                // 按年份模式
+                <>
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <button
+                      onClick={() => { setMockMode(null); setSelectedYear(null); }}
+                      className="text-xs text-slate-500 hover:text-indigo-600 flex items-center gap-1"
+                    >
+                      <ChevronRight size={14} className="rotate-180" /> 返回
+                    </button>
+                    <h4 className="font-bold text-slate-800">选择年份</h4>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+                    {YEARS.map(year => (
+                      <button
+                        key={year}
+                        onClick={() => setSelectedYear(year)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex items-center gap-3 group ${
+                          selectedYear === year
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <Calendar size={16} className={selectedYear === year ? 'text-white' : 'text-slate-400'} />
+                        <span className="flex-1">{year}年真题</span>
+                        {selectedYear === year && <CheckCircle2 size={16} />}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={startMockByYear}
+                    disabled={!selectedYear || isLoading}
+                    className="w-full mt-4 py-3.5 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? <Loader2 className="animate-spin" size={18} /> : <PlayCircle size={18} />}
+                    开始练习
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -254,89 +378,28 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
           {isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
               <Loader2 className="animate-spin mb-4" size={40} />
-              <p className="font-medium text-slate-600">正在为您生成模拟题...</p>
-              <p className="text-sm mt-2">根据所选知识点，每个生成10道题</p>
+              <p className="font-medium text-slate-600">正在生成题目...</p>
             </div>
           ) : !currentQuestion ? (
-            questions.length > 0 ? (
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="text-indigo-600" size={20} />
-                    <h3 className="font-bold text-slate-800 text-lg">
-                      已生成 {questions.length} 道模拟题
-                    </h3>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setQuestions([]);
-                      setSelectedKPs([]);
-                    }}
-                    className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-all flex items-center gap-1"
-                  >
-                    <RefreshCw size={12} /> 重置所有
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  {questions.map((q, idx) => (
-                    <div
-                      key={q.id}
-                      className="p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-sm flex-shrink-0">
-                          {idx + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-slate-700 text-sm line-clamp-2 mb-3">{q.content}</p>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                {q.type === 'choice' ? '单选题' : '问答/计算'}
-                              </span>
-                              {mode === 'mock' && q.source && (
-                                <span className="text-[10px] font-bold text-purple-500 bg-purple-50 px-2 py-0.5 rounded-full">
-                                  {q.source}
-                                </span>
-                              )}
-                              <span className="text-[10px] font-bold text-slate-400">
-                                · {q.knowledgePoint}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setCurrentQuestion(q);
-                                setUserAnswer('');
-                                setFeedback(null);
-                              }}
-                              className="px-4 py-1.5 bg-white border border-indigo-200 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                            >
-                              开始练习
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-10 text-center">
-                <BookOpen size={64} className="mb-4 opacity-20" />
-                <p className="text-lg">
-                  {mode === 'chapter' ? '请选择左侧知识点生成10道模拟题' : '点击左侧按钮生成10道模拟题'}
-                </p>
-              </div>
-            )
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-10 text-center">
+              <BookOpen size={64} className="mb-4 opacity-20" />
+              <p className="text-lg">
+                {mode === 'chapter'
+                  ? '请点击左侧知识点开始练习'
+                  : mockMode
+                    ? '请选择后点击"开始练习"'
+                    : '请选择练习模式'}
+              </p>
+            </div>
           ) : (
             <div className="flex-1 overflow-y-auto p-8">
               <div className="flex items-center justify-between mb-6">
                 <button
-                  onClick={() => setCurrentQuestion(null)}
+                  onClick={handleBack}
                   className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-all"
                 >
                   <ChevronRight size={18} className="rotate-180" />
-                  <span className="text-sm font-bold">返回列表</span>
+                  <span className="text-sm font-bold">返回</span>
                 </button>
                 <div className="flex items-center gap-3">
                   {mode === 'mock' && currentQuestion.source && (
@@ -347,6 +410,11 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
                   <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold uppercase tracking-wider">
                     {currentQuestion.type === 'choice' ? '单选题' : currentQuestion.type === 'qa' ? '问答题' : '计算题'}
                   </span>
+                  {questionList.length > 1 && (
+                    <span className="text-xs text-slate-400">
+                      {currentIndex + 1} / {questionList.length}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -445,15 +513,10 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
                       </button>
                       {feedback.isCorrect ? (
                         <button
-                          onClick={() => {
-                            setQuestions(prev => prev.filter(q => q.id !== currentQuestion.id));
-                            setCurrentQuestion(null);
-                            setFeedback(null);
-                            setUserAnswer('');
-                          }}
+                          onClick={goToNextQuestion}
                           className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
                         >
-                          下一题 <ArrowRight size={18} />
+                          {currentIndex < questionList.length - 1 ? '下一题' : '完成'} <ArrowRight size={18} />
                         </button>
                       ) : (
                         <button
@@ -475,43 +538,15 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
                         <p className="text-sm text-slate-600 mb-3 font-medium">请选择下一步操作：</p>
                         <div className="flex flex-col gap-2">
                           <button
-                            onClick={async () => {
-                              setIsGeneratingSimilar(true);
-                              try {
-                                const newQ = await generateQuestion(
-                                  currentQuestion.subject,
-                                  currentQuestion.knowledgePoint,
-                                  Math.random() > 0.3 ? 'choice' : 'qa'
-                                );
-                                setQuestions(prev => [newQ, ...prev]);
-                                setCurrentQuestion(newQ);
-                                setFeedback(null);
-                                setUserAnswer('');
-                                setShowNextOptions(false);
-                              } catch (error) {
-                                console.error('Generate similar question error:', error);
-                              } finally {
-                                setIsGeneratingSimilar(false);
-                              }
-                            }}
-                            disabled={isGeneratingSimilar}
+                            onClick={generateSimilarQuestion}
+                            disabled={isLoading}
                             className="w-full py-3 bg-white border-2 border-indigo-200 text-indigo-600 rounded-xl font-bold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
                           >
-                            {isGeneratingSimilar ? (
-                              <Loader2 className="animate-spin" size={18} />
-                            ) : (
-                              <RefreshCw size={18} />
-                            )}
+                            {isLoading ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
                             继续练习此知识点
                           </button>
                           <button
-                            onClick={() => {
-                              setQuestions(prev => prev.filter(q => q.id !== currentQuestion.id));
-                              setCurrentQuestion(null);
-                              setFeedback(null);
-                              setUserAnswer('');
-                              setShowNextOptions(false);
-                            }}
+                            onClick={goToNextQuestion}
                             className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
                           >
                             进入下一题 <ArrowRight size={18} />
@@ -544,7 +579,7 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-slate-800">选择错题本</h3>
-                <button 
+                <button
                   onClick={() => setIsCollectionModalOpen(false)}
                   className="p-2 hover:bg-slate-100 rounded-full text-slate-400"
                 >

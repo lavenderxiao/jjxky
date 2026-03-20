@@ -5,7 +5,8 @@
       "Bash(npm install:*)",
       "Bash(npx vercel:*)",
       "Bash(npx surge:*)",
-      "Bash(npx netlify:*)"
+      "Bash(npx netlify:*)",
+      "Bash(gh auth:*)"
     ]
   }
 }
