@@ -45,8 +45,12 @@ export default function App() {
   });
   const [collections, setCollections] = useState<WrongCollection[]>(() => {
     const saved = localStorage.getItem('collections');
-    return saved ? JSON.parse(saved) : [
-      { id: 'all', name: '所有错题' },
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // 过滤掉 'all'，因为它在UI中单独处理
+      return parsed.filter((c: WrongCollection) => c.id !== 'all');
+    }
+    return [
       { id: '1', name: '微观经济学' },
       { id: '2', name: '宏观经济学' }
     ];

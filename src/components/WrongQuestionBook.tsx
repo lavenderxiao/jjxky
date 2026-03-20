@@ -120,8 +120,8 @@ export default function WrongQuestionBook({
               {wrongQuestions.length}
             </span>
           </button>
-          
-          {collections.map(c => (
+
+          {collections.filter(c => c.id !== 'all').map(c => (
             <button
               key={c.id}
               onClick={() => setActiveCollectionId(c.id)}
@@ -278,15 +278,18 @@ export default function WrongQuestionBook({
         ) : selectedQuestion ? (
           <div className="flex-1 flex flex-col p-8 overflow-y-auto">
             <div className="flex items-center justify-between mb-8">
-              <button 
+              <button
                 onClick={() => setSelectedQuestion(null)}
                 className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-all"
               >
                 <ChevronRight size={20} className="rotate-180" /> 返回列表
               </button>
               <div className="flex gap-2">
-                <button 
-                  onClick={() => onRemoveQuestion(selectedQuestion.id)}
+                <button
+                  onClick={() => {
+                    onRemoveQuestion(selectedQuestion.id);
+                    setSelectedQuestion(null);
+                  }}
                   className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                 >
                   <Trash2 size={20} />
@@ -371,7 +374,7 @@ export default function WrongQuestionBook({
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">{q.subject}</span>
                         <div className="flex gap-1">
-                          {collections.map(c => (
+                          {collections.filter(c => c.id !== 'all').map(c => (
                             <button
                               key={c.id}
                               onClick={(e) => {
@@ -426,7 +429,7 @@ export default function WrongQuestionBook({
               </div>
 
               <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-2">
-                {collections.map(c => {
+                {collections.filter(c => c.id !== 'all').map(c => {
                   const isInCollection = selectedQuestion.collectionIds.includes(c.id);
                   return (
                     <button

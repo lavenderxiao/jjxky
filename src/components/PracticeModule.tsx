@@ -182,7 +182,12 @@ export default function PracticeModule({ mode, onAddWrongQuestion, collections }
       newList.splice(currentIndex + 1, 0, newQ);
       setQuestionList(newList);
       setShowNextOptions(false);
-      goToNextQuestion();
+      // 直接跳转到新插入的题目
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setCurrentQuestion(newList[nextIndex]);
+      setUserAnswer('');
+      setFeedback(null);
     } catch (error) {
       console.error('Generate similar question error:', error);
     } finally {
