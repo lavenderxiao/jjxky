@@ -1,0 +1,7 @@
+{
+  "name": "经济学考研辅导助手",
+  "description": "提供考研信息查询、专业课辅导、题海战术及错题集管理的一站式经济学考研智能助手。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
