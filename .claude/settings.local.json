@@ -6,7 +6,16 @@
       "Bash(npx vercel:*)",
       "Bash(npx surge:*)",
       "Bash(npx netlify:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx localtunnel:*)",
+      "Bash(ls -la D:claudejjxky.env*)",
+      "Bash(\"D:\\\\claude\\\\jjxky\\\\.env.example\":*)",
+      "Bash(\"D:\\\\claude\\\\jjxky\\\\admin\\\\src\\\\pages\\\\Subject\\\\SubjectList.tsx\":*)",
+      "Bash(\"D:\\\\claude\\\\jjxky\\\\admin\\\\src\\\\pages\\\\KnowledgePoint\\\\KnowledgePointList.tsx\":*)",
+      "Bash(\"D:\\\\claude\\\\jjxky\\\\admin\\\\src\\\\pages\\\\ScoreLine\\\\ScoreLineList.tsx\":*)",
+      "Bash(\"D:\\\\claude\\\\jjxky\\\\admin\\\\src\\\\pages\\\\Enrollment\\\\EnrollmentList.tsx\":*)",
+      "Bash(\"D:\\\\claude\\\\jjxky\\\\admin\\\\src\\\\pages\\\\User\\\\UserList.tsx\":*)"
     ]
   }
 }

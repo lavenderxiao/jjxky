@@ -1,0 +1,12 @@
+export { authService } from './authService'
+export { universityService } from './universityService'
+export { questionService } from './questionService'
+export { subjectService } from './subjectService'
+export { knowledgePointService } from './knowledgePointService'
+export { scoreLineService } from './scoreLineService'
+export { enrollmentService } from './enrollmentService'
+export { userService } from './userService'
+export { configService } from './configService'
+export { statsService } from './statsService'
+
+export { default as api } from './api'
